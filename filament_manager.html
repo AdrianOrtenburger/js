@@ -155,14 +155,16 @@
     <script>
         // --- FIREBASE CONFIG (HIER EINFÜGEN) ---
         const firebaseConfig = {
-            apiKey: "HIER_API_KEY_EINFUEGEN", 
-            authDomain: "DEIN_PROJEKT.firebaseapp.com",
-            projectId: "DEIN_PROJEKT",
-            storageBucket: "DEIN_PROJEKT.appspot.com",
-            messagingSenderId: "123...",
-            appId: "1:123..."
+            apiKey: "AIzaSyCNXW-aJKNgkueKmy3PFBEOMGoZ3-cvL4A",
+            authDomain: "filament-manager-7c032.firebaseapp.com",
+            databaseURL: "https://filament-manager-7c032-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "filament-manager-7c032",
+            storageBucket: "filament-manager-7c032.firebasestorage.app",
+            messagingSenderId: "1025764150616",
+            appId: "1:1025764150616:web:8c5915e585aeba1287692d",
+            measurementId: "G-ZGC141C8JP"
         };
-
+        
         // Init
         let db=null; let auth=null; let currentUser=null; let isCloudActive=false;
         try { if(firebaseConfig.apiKey !== "HIER_API_KEY_EINFUEGEN") { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); auth = firebase.auth(); } } catch(e){console.warn(e);}
