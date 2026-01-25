@@ -538,10 +538,12 @@
 
             // Listeners
             document.getElementById('addBtn').addEventListener('click', addEntry);
-            const upId = () => document.getElementById('newId').value = calculateNextId(document.getElementById('newBrand').value, document.getElementById('newType').value);
-            document.getElementById('newBrand').addEventListener('input', upId);
-            document.getElementById('newType').addEventListener('input', upId);
-            document.getElementById('newBrand').addEventListener('change', (e) => { e.target.value = normalizeBrand(e.target.value); upId(); });
+            
+            // FIX: "upId" Logik entfernt, da es kein input Feld mit id="newId" mehr gibt.
+            // Nur noch Normalisierung beim Change:
+            document.getElementById('newBrand').addEventListener('change', (e) => { 
+                e.target.value = normalizeBrand(e.target.value); 
+            });
         });
 
         // --- AUTH UI ---
@@ -649,7 +651,6 @@
             reader.onload = (e) => {
                 try {
                     pendingImportData = JSON.parse(e.target.result);
-                    // UI: Sidebar schließen, Modal öffnen
                     document.getElementById('sidebar').classList.remove('open');
                     document.getElementById('overlay').classList.add('show');
                     document.getElementById('importModal').classList.add('show');
@@ -679,7 +680,7 @@
 
             let m = 0, n = 0;
             src.forEach(newItem => {
-                recalcItem(newItem); // Ensure imported stats are valid
+                recalcItem(newItem);
                 const amt = newItem.count;
                 if (amt === 0 && (!newItem.history || newItem.history.length === 0)) return;
                 const prc = newItem.averagePrice || 0;
@@ -795,7 +796,8 @@
             const existIdx = inventory.findIndex(i => normalizeBrand(i.brand) === b && i.type === t && i.color === document.getElementById('newColor').value);
             if (existIdx > -1) { addHistoryEntry(inventory[existIdx], c, "Nachkauf", p); alert("Bestand erhöht!"); }
             else {
-                let id = document.getElementById('newId').value; if (!id || id === '---') id = calculateNextId(b, t);
+                // FIX: Automatische ID Berechnung ohne DOM-Zugriff
+                let id = calculateNextId(b, t);
                 const ni = { id: id, brand: b, type: t, color: document.getElementById('newColor').value, info: document.getElementById('newInfo').value, weight: parseFloat(document.getElementById('newWeight').value) || 1000, sample: document.getElementById('newSample').checked, history: [] };
                 addHistoryEntry(ni, c, "Neu", p); inventory.push(ni);
             }
