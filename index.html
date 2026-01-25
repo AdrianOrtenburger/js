@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Filament Manager v28 - Auto-ID Import</title>
+    <title>Filament Manager v30 - Smart Price History</title>
 
     <meta name="theme-color" content="#2d3436">
 
@@ -338,9 +338,9 @@
             padding: 20px;
             border-radius: 8px;
             z-index: 2000;
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
+            width: 95%;
+            max-width: 800px;
+            max-height: 85vh;
             overflow-y: auto;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
         }
@@ -367,18 +367,35 @@
         .history-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
 
         .history-table th {
             text-align: left;
             border-bottom: 2px solid #ccc;
-            padding: 5px;
+            padding: 8px;
+            background: #f9f9f9;
         }
 
         .history-table td {
             border-bottom: 1px solid #eee;
-            padding: 5px;
+            padding: 4px;
+        }
+        
+        .history-table input {
+            width: 100%;
+            padding: 6px;
+            box-sizing: border-box;
+            border: 1px solid transparent;
+            border-radius: 3px;
+        }
+        .history-table input:focus {
+            border-color: var(--primary-color);
+            background: #fff;
+            outline: none;
+        }
+        .history-table input:hover {
+            background: #f5f5f5;
         }
 
         #syncStatus {
@@ -439,21 +456,25 @@
                 onclick="saveMappingFromEditor()"
                 style="background:var(--btn-inc);color:white;border:none;padding:10px;">Speichern</button></div>
     </div>
+    
     <div id="historyModal" class="modal">
-        <h3 id="historyTitle">Verlauf</h3>
+        <h3 id="historyTitle">Verlauf bearbeiten</h3>
+        <p style="font-size:0.8rem; color:#666;">Änderungen werden sofort gespeichert und neu berechnet.</p>
         <table class="history-table">
             <thead>
                 <tr>
-                    <th>Datum</th>
-                    <th>Menge</th>
-                    <th>Preis</th>
+                    <th style="width:140px;">Datum</th>
+                    <th style="width:60px;">Menge</th>
+                    <th style="width:70px;">Preis</th>
                     <th>Notiz</th>
+                    <th style="width:30px;"></th>
                 </tr>
             </thead>
             <tbody id="historyTableBody"></tbody>
         </table>
         <div class="modal-buttons"><button onclick="closeAllModals()">Schließen</button></div>
     </div>
+    
     <div id="importModal" class="modal">
         <h3>Import</h3>
         <p>Aktion wählen:</p>
@@ -498,7 +519,7 @@
         } catch (e) { console.warn("Firebase Error", e); }
 
         // --- STATE ---
-        const STORAGE_KEY = 'filament_inventory_v28';
+        const STORAGE_KEY = 'filament_inventory_v30';
         const MAPPING_KEY = 'filament_mapping_v1';
         const SETTINGS_KEY = 'filament_settings_v1';
 
@@ -507,6 +528,7 @@
         let columnSettings = [];
         let pendingImportData = null;
         let sortState = { key: 'id', direction: 'asc' };
+        let currentHistoryItemIndex = -1;
 
         const DEFAULT_COLUMNS = [
             { key: 'id', label: 'ID', width: 80 },
@@ -537,6 +559,7 @@
 
             // Listeners
             document.getElementById('addBtn').addEventListener('click', addEntry);
+            
             document.getElementById('newBrand').addEventListener('change', (e) => { 
                 e.target.value = normalizeBrand(e.target.value); 
             });
@@ -579,6 +602,10 @@
                     renderHeaders();
                     renderTable();
                     updateAutocompleteLists();
+                    
+                    if(document.getElementById('historyModal').classList.contains('show') && currentHistoryItemIndex > -1) {
+                        renderHistoryRows();
+                    }
                 } else {
                     if (inventory.length === 0) loadDataLocal();
                 }
@@ -640,20 +667,40 @@
             renderHeaders(); renderTable(); updateAutocompleteLists();
         }
 
-        // --- CORE LOGIC ---
+        // --- CORE LOGIC (Smart Price Update) ---
         function recalcItem(item) {
             if (!item) return;
             item.count = parseFloat(item.count) || 0;
             if (!item.history || !Array.isArray(item.history)) item.history = [{ date: new Date().toISOString(), amount: item.count, price: 0, note: "Init" }];
 
             let totalCount = 0, totalValue = 0;
-            [...item.history].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(e => {
+            
+            // Sort history by date ascending for calculation
+            const sortedHistory = [...item.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            sortedHistory.forEach(e => {
                 const qty = parseFloat(e.amount) || 0; const prc = parseFloat(e.price) || 0;
                 if (qty > 0) { totalValue += (qty * prc); totalCount += qty; }
                 else { const avg = totalCount > 0 ? totalValue / totalCount : 0; totalValue -= (Math.abs(qty) * avg); totalCount += qty; }
             });
+            
             item.count = Math.max(0, totalCount);
-            item.averagePrice = totalCount > 0 ? totalValue / totalCount : 0;
+            
+            // 1. Calculate Standard Weighted Average
+            let avgPrice = totalCount > 0 ? totalValue / totalCount : 0;
+
+            // 2. Fallback Logic: If Average is 0 (e.g. stock is 0), find newest non-zero price in history
+            if (avgPrice === 0) {
+                // Iterate backwards through sorted history (Newest first)
+                for (let i = sortedHistory.length - 1; i >= 0; i--) {
+                    if (sortedHistory[i].price > 0) {
+                        avgPrice = sortedHistory[i].price;
+                        break;
+                    }
+                }
+            }
+
+            item.averagePrice = avgPrice;
         }
 
         function addHistoryEntry(item, amount, note, price = 0) {
@@ -695,7 +742,7 @@
             return prefix + String(nextNum).padStart(3, '0');
         }
 
-        // --- IMPORT LOGIC (FIXED) ---
+        // --- IMPORT LOGIC ---
         function readImportFile(inputElement) {
             const file = inputElement.files[0]; if (!file) return;
             const reader = new FileReader();
@@ -714,7 +761,6 @@
             if (!pendingImportData) return alert("Keine Daten!");
             
             let newInv = [];
-            // Format detection
             if (Array.isArray(pendingImportData)) newInv = pendingImportData;
             else if (pendingImportData.inventory) {
                 newInv = pendingImportData.inventory;
@@ -722,12 +768,9 @@
                 if (pendingImportData.settings) columnSettings = pendingImportData.settings;
             }
             
-            // RESET INVENTORY FOR CLEAN IMPORT
             inventory = []; 
 
-            // Process Items individually
             newInv.forEach(item => {
-                // Ensure ID
                 if (!item.id || item.id.trim() === "") {
                     item.id = calculateNextId(item.brand, item.type);
                 }
@@ -755,12 +798,10 @@
                 if (idx > -1) {
                     addHistoryEntry(inventory[idx], amt, "Import Merge", prc); m++;
                 } else {
-                    // Check for missing ID or Collision
                     if (!newItem.id || inventory.some(e => e.id === newItem.id)) {
                         newItem.id = calculateNextId(newItem.brand, newItem.type);
                         if (inventory.some(e => e.id === newItem.id)) newItem.id += "_" + Math.floor(Math.random() * 100);
                     }
-                    
                     newItem.history = [{ date: new Date().toISOString(), amount: amt, price: prc, note: "Import New" }];
                     recalcItem(newItem); 
                     inventory.push(newItem); 
@@ -785,6 +826,7 @@
         function closeAllModals() {
             document.querySelectorAll('.modal, .sidebar, #overlay').forEach(e => e.classList.remove('show', 'open'));
             pendingImportData = null; document.getElementById('importFile').value = '';
+            currentHistoryItemIndex = -1;
         }
 
         function resetColumnSettings() { columnSettings = JSON.parse(JSON.stringify(DEFAULT_COLUMNS)); saveData(); renderHeaders(); renderTable(); }
@@ -803,7 +845,6 @@
                     columnSettings.splice(idx, 0, columnSettings.splice(from, 1)[0]);
                     saveData(); renderHeaders(); renderTable();
                 });
-                // Resizer
                 const resizer = document.createElement('div'); resizer.className = 'resizer';
                 let startX, startW;
                 resizer.addEventListener('mousedown', (e) => { e.preventDefault(); startX = e.pageX; startW = col.width; document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); });
@@ -818,83 +859,78 @@
         }
 
         function renderTable() {
-    const tbody = document.getElementById('filamentTableBody');
-    const search = document.getElementById('searchInput').value.toLowerCase();
-    
-    // 1. Filter
-    const filtered = inventory.filter(i => Object.values(i).some(v => String(v).toLowerCase().includes(search)));
+            const tbody = document.getElementById('filamentTableBody');
+            
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = inventory.filter(i => Object.values(i).some(v => String(v).toLowerCase().includes(search)));
 
-    // 2. Sort
-    const sorted = filtered.sort((a, b) => {
-        let vA = a[sortState.key], vB = b[sortState.key];
-        if (sortState.key === 'count') { vA = a.count; vB = b.count; }
-        if (typeof vA === 'string') return vA.localeCompare(vB, undefined, { numeric: true });
-        return sortState.direction === 'asc' ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
-    });
+            const sorted = filtered.sort((a, b) => {
+                let vA = a[sortState.key], vB = b[sortState.key];
+                if (sortState.key === 'count') { vA = a.count; vB = b.count; }
+                if (typeof vA === 'string') return vA.localeCompare(vB, undefined, { numeric: true });
+                return sortState.direction === 'asc' ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+            });
 
-    // 3. Render using DocumentFragment
-    const fragment = document.createDocumentFragment();
+            const fragment = document.createDocumentFragment();
 
-    sorted.forEach(item => {
-        const tr = document.createElement('tr'); 
-        const idx = inventory.indexOf(item);
-        
-        columnSettings.forEach(col => {
-            const td = document.createElement('td');
-            if (col.key === 'id') { 
-                td.innerText = item.id; 
-                td.style.fontWeight = 'bold'; 
-            }
-            else if (col.key === 'averagePrice') { 
-                td.innerText = (item.averagePrice || 0).toFixed(2) + ' €'; 
-            }
-            else if (col.key === 'count') { 
-                td.innerText = item.count; 
-                td.style.textAlign = 'center'; 
-                td.style.fontWeight = 'bold'; 
-            }
-            else {
-                const inp = document.createElement('input');
-                if (col.key === 'sample') { 
-                    inp.type = 'checkbox'; 
-                    inp.checked = item.sample; 
-                    inp.onchange = (e) => updateEntry(idx, 'sample', e.target.checked); 
-                }
-                else {
-                    inp.value = item[col.key]; 
-                    if (col.key === 'weight') inp.type = 'number';
-                    if (['brand', 'type', 'color'].includes(col.key)) {
-                        inp.setAttribute('list', 'list' + col.key.charAt(0).toUpperCase() + col.key.slice(1) + 's');
+            sorted.forEach(item => {
+                const tr = document.createElement('tr'); 
+                const idx = inventory.indexOf(item);
+                
+                columnSettings.forEach(col => {
+                    const td = document.createElement('td');
+                    if (col.key === 'id') { 
+                        td.innerText = item.id; 
+                        td.style.fontWeight = 'bold'; 
                     }
-                    inp.onchange = (e) => {
-                        let v = e.target.value; 
-                        if (col.key === 'brand') v = normalizeBrand(v); 
-                        if (col.key === 'weight') v = parseFloat(v);
-                        updateEntry(idx, col.key, v); 
-                        if (col.key === 'brand') renderTable();
-                    };
-                }
-                td.appendChild(inp);
-            }
-            tr.appendChild(td);
-        });
-        
-        // Action buttons
-        const tdAct = document.createElement('td');
-        tdAct.innerHTML = `<div class="action-group">
-            <button class="btn-mini btn-dec" onclick="changeCount(${idx}, -1)">-</button>
-            <button class="btn-mini btn-inc" onclick="changeCount(${idx}, 1)">+</button>
-            <button class="btn-mini btn-hist" onclick="showHistory(${idx})">🕒</button>
-            <button class="btn-mini btn-del" onclick="deleteEntry(${idx})">✕</button>
-        </div>`;
-        tr.appendChild(tdAct);
-        
-        fragment.appendChild(tr);
-    });
+                    else if (col.key === 'averagePrice') { 
+                        td.innerText = (item.averagePrice || 0).toFixed(2) + ' €'; 
+                    }
+                    else if (col.key === 'count') { 
+                        td.innerText = item.count; 
+                        td.style.textAlign = 'center'; 
+                        td.style.fontWeight = 'bold'; 
+                    }
+                    else {
+                        const inp = document.createElement('input');
+                        if (col.key === 'sample') { 
+                            inp.type = 'checkbox'; 
+                            inp.checked = item.sample; 
+                            inp.onchange = (e) => updateEntry(idx, 'sample', e.target.checked); 
+                        }
+                        else {
+                            inp.value = item[col.key]; 
+                            if (col.key === 'weight') inp.type = 'number';
+                            if (['brand', 'type', 'color'].includes(col.key)) {
+                                inp.setAttribute('list', 'list' + col.key.charAt(0).toUpperCase() + col.key.slice(1) + 's');
+                            }
+                            inp.onchange = (e) => {
+                                let v = e.target.value; 
+                                if (col.key === 'brand') v = normalizeBrand(v); 
+                                if (col.key === 'weight') v = parseFloat(v);
+                                updateEntry(idx, col.key, v); 
+                                if (col.key === 'brand') renderTable();
+                            };
+                        }
+                        td.appendChild(inp);
+                    }
+                    tr.appendChild(td);
+                });
+                
+                const tdAct = document.createElement('td');
+                tdAct.innerHTML = `<div class="action-group">
+                    <button class="btn-mini btn-dec" onclick="changeCount(${idx}, -1)">-</button>
+                    <button class="btn-mini btn-inc" onclick="changeCount(${idx}, 1)">+</button>
+                    <button class="btn-mini btn-hist" onclick="showHistory(${idx})">🕒</button>
+                    <button class="btn-mini btn-del" onclick="deleteEntry(${idx})">✕</button>
+                </div>`;
+                tr.appendChild(tdAct);
+                fragment.appendChild(tr);
+            });
 
-    tbody.innerHTML = '';
-    tbody.appendChild(fragment);
-}
+            tbody.innerHTML = '';
+            tbody.appendChild(fragment);
+        }
 
         function addEntry() {
             const b = normalizeBrand(document.getElementById('newBrand').value);
@@ -926,12 +962,68 @@
                 if (l.innerHTML !== options) l.innerHTML = options;
             });
         }
+
+        // --- NEW EDITABLE HISTORY LOGIC ---
         function showHistory(idx) {
+            currentHistoryItemIndex = idx;
             const i = inventory[idx];
             document.getElementById('historyTitle').innerText = `${i.brand} ${i.type}`;
-            document.getElementById('historyTableBody').innerHTML = i.history.sort((a, b) => new Date(b.date) - new Date(a.date)).map(h => `<tr><td>${new Date(h.date).toLocaleDateString()}</td><td>${h.amount}</td><td>${(h.price || 0).toFixed(2)}€</td><td>${h.note}</td></tr>`).join('');
-            document.getElementById('historyModal').classList.add('show'); document.getElementById('overlay').classList.add('show');
+            renderHistoryRows();
+            document.getElementById('historyModal').classList.add('show'); 
+            document.getElementById('overlay').classList.add('show');
         }
+
+        function renderHistoryRows() {
+            const i = inventory[currentHistoryItemIndex];
+            if(!i) return;
+            
+            const mappedHistory = i.history.map((h, index) => ({...h, originalIndex: index}));
+            mappedHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            let html = '';
+            mappedHistory.forEach(h => {
+                const dateVal = h.date; 
+
+                html += `<tr>
+                    <td><input type="text" value="${dateVal}" onchange="updateHistory(${h.originalIndex}, 'date', this.value)" style="font-size:0.75rem;"></td>
+                    <td><input type="number" value="${h.amount}" onchange="updateHistory(${h.originalIndex}, 'amount', this.value)"></td>
+                    <td><input type="number" value="${(h.price||0)}" step="0.01" onchange="updateHistory(${h.originalIndex}, 'price', this.value)"></td>
+                    <td><input type="text" value="${h.note}" onchange="updateHistory(${h.originalIndex}, 'note', this.value)"></td>
+                    <td><button class="btn-mini btn-del" onclick="deleteHistory(${h.originalIndex})">X</button></td>
+                </tr>`;
+            });
+            document.getElementById('historyTableBody').innerHTML = html;
+        }
+
+        function updateHistory(histIdx, field, value) {
+            const item = inventory[currentHistoryItemIndex];
+            
+            if(field === 'amount' || field === 'price') {
+                value = parseFloat(value) || 0;
+            }
+            
+            item.history[histIdx][field] = value;
+            
+            recalcItem(item);
+            
+            saveData(); 
+            renderTable();
+        }
+
+        function deleteHistory(histIdx) {
+            if(!confirm("Eintrag entfernen?")) return;
+            
+            const item = inventory[currentHistoryItemIndex];
+            item.history.splice(histIdx, 1);
+            
+            recalcItem(item);
+            saveData();
+            renderTable();
+            renderHistoryRows();
+        }
+
+        function saveMappingFromEditor() { try { brandMapping = JSON.parse(document.getElementById('mappingEditorText').value); saveData(); closeAllModals(); } catch (e) { alert("JSON Error"); } }
+        function openMappingEditor() { closeAllModals(); document.getElementById('mappingModal').classList.add('show'); document.getElementById('overlay').classList.add('show'); document.getElementById('mappingEditorText').value = JSON.stringify(brandMapping, null, 2); }
     </script>
 </body>
 
