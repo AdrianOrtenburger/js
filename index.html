@@ -432,7 +432,7 @@
         }
         window.clearForm = function() {
             document.querySelectorAll('.add-form input').forEach(i=>i.value='');
-            document.getElementById('newCount').value='1'; document.getElementById('newWeight').value='1000'; document.getElementById('newPrice').value='0.00'; document.getElementById('newSample').checked=false;
+            document.getElementById('newCount').value='1'; document.getElementById('newPrice').value='0.00'; document.getElementById('newSample').checked=false;
             renderTable();
         };
         window.changeCount = function(idx, d) { if(inventory[idx].count+d<0)return; addHistoryEntry(inventory[idx], d, d>0?"Inkrement":"Dekrement", d>0?inventory[idx].averagePrice:0); saveData(); renderTable(); }
