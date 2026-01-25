@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Filament Manager v25 - Complete</title>
+    <title>Filament Manager v28 - Auto-ID Import</title>
 
     <meta name="theme-color" content="#2d3436">
 
@@ -479,7 +479,6 @@
         const firebaseConfig = {
             apiKey: "AIzaSyCNXW-aJKNgkueKmy3PFBEOMGoZ3-cvL4A",
             authDomain: "filament-manager-7c032.firebaseapp.com",
-            databaseURL: "https://filament-manager-7c032-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "filament-manager-7c032",
             storageBucket: "filament-manager-7c032.firebasestorage.app",
             messagingSenderId: "1025764150616",
@@ -499,7 +498,7 @@
         } catch (e) { console.warn("Firebase Error", e); }
 
         // --- STATE ---
-        const STORAGE_KEY = 'filament_inventory_v25';
+        const STORAGE_KEY = 'filament_inventory_v28';
         const MAPPING_KEY = 'filament_mapping_v1';
         const SETTINGS_KEY = 'filament_settings_v1';
 
@@ -538,9 +537,6 @@
 
             // Listeners
             document.getElementById('addBtn').addEventListener('click', addEntry);
-            
-            // FIX: "upId" Logik entfernt, da es kein input Feld mit id="newId" mehr gibt.
-            // Nur noch Normalisierung beim Change:
             document.getElementById('newBrand').addEventListener('change', (e) => { 
                 e.target.value = normalizeBrand(e.target.value); 
             });
@@ -566,24 +562,72 @@
         // --- DATA SYNC ---
         function syncFromCloud() {
             if (!isCloudActive) return;
+            
             db.collection('users').doc(currentUser.uid).onSnapshot((doc) => {
+                if (doc.metadata.hasPendingWrites) return;
+
                 if (doc.exists) {
                     const data = doc.data();
                     inventory = data.inventory || [];
                     brandMapping = data.mapping || DEFAULT_MAPPING;
                     columnSettings = data.settings || DEFAULT_COLUMNS;
+                    
                     inventory.forEach(i => recalcItem(i));
-                    saveDataLocal(true); renderHeaders(); renderTable(); updateAutocompleteLists();
-                } else { if (inventory.length === 0) loadDataLocal(); }
+                    
+                    saveDataLocal(true); 
+                    
+                    renderHeaders();
+                    renderTable();
+                    updateAutocompleteLists();
+                } else {
+                    if (inventory.length === 0) loadDataLocal();
+                }
             });
         }
 
+        let saveTimer = null;
+
         function saveData() {
-            saveDataLocal();
+            const status = document.getElementById('syncStatus');
+            if (isCloudActive) {
+                status.innerText = "⏳ Sync pending...";
+                status.style.color = "#f1c40f";
+            }
+
+            if (saveTimer) clearTimeout(saveTimer);
+
+            saveTimer = setTimeout(() => {
+                executeBackgroundSave();
+            }, 2000);
+        }
+
+        function executeBackgroundSave() {
+            saveDataLocal(true); 
+
             if (isCloudActive && db && currentUser) {
                 db.collection('users').doc(currentUser.uid).set({
-                    inventory: inventory, mapping: brandMapping, settings: columnSettings, lastUpdate: new Date().toISOString()
-                }, { merge: true }).catch(e => console.error(e));
+                    inventory: inventory,
+                    mapping: brandMapping,
+                    settings: columnSettings,
+                    lastUpdate: new Date().toISOString()
+                }, { merge: true })
+                .then(() => {
+                    const status = document.getElementById('syncStatus');
+                    status.innerText = "☁️ Online: " + currentUser.email;
+                    status.style.color = "#2ecc71";
+                })
+                .catch(e => console.error(e));
+            }
+        }
+
+        function saveDataLocal(skipRender = true) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+            localStorage.setItem(MAPPING_KEY, JSON.stringify(brandMapping));
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(columnSettings));
+            
+            if (!skipRender) { 
+                updateAutocompleteLists(); 
+                renderTable(); 
             }
         }
 
@@ -594,13 +638,6 @@
             brandMapping = mapData ? JSON.parse(mapData) : DEFAULT_MAPPING;
             inventory.forEach(i => recalcItem(i));
             renderHeaders(); renderTable(); updateAutocompleteLists();
-        }
-
-        function saveDataLocal(skipRender = false) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
-            localStorage.setItem(MAPPING_KEY, JSON.stringify(brandMapping));
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(columnSettings));
-            if (!skipRender) { updateAutocompleteLists(); renderTable(); }
         }
 
         // --- CORE LOGIC ---
@@ -631,20 +668,34 @@
             return inVal.trim();
         }
 
+        // --- ID LOGIK ---
         function calculateNextId(brand, type) {
-            const b = normalizeBrand(brand).toLowerCase(); const t = (type || "").toLowerCase();
-            const getOff = (s) => s.includes('silk') ? 100 : s.includes('matte') ? 500 : s.includes('pla') ? 0 : s.includes('petg') ? 200 : s.includes('abs') ? 300 : s.includes('tpu') ? 400 : 900;
-            const getId = (pre) => {
-                const off = getOff(t); const rng = inventory.filter(i => i.id.startsWith(pre)).map(i => parseInt(i.id.substring(1))).filter(n => n >= off && n <= off + 99);
-                return pre + String((rng.length ? Math.max(...rng) : off) + 1).padStart(3, '0');
+            const cleanBrand = normalizeBrand(brand);
+            const prefix = cleanBrand ? cleanBrand.charAt(0).toUpperCase() : 'X';
+            const t = (type || "").toLowerCase();
+            
+            let start = 500, end = 9999; 
+            if (t.includes('pla')) { start = 0; end = 199; }
+            else if (t.includes('petg')) { start = 200; end = 299; }
+            else if (t.includes('abs') || t.includes('asa')) { start = 300; end = 399; }
+            else if (t.includes('tpu') || t.includes('flex')) { start = 400; end = 499; }
+
+            const getNextInRange = (s, e) => {
+                const existingIds = inventory
+                    .filter(i => i.id.startsWith(prefix)) 
+                    .map(i => parseInt(i.id.substring(1), 10)) 
+                    .filter(n => !isNaN(n) && n >= s && n <= e);
+                if (existingIds.length === 0) return s; 
+                return Math.max(...existingIds) + 1;
             };
-            if (b.includes('bambu')) return getId('B'); if (b.includes('sunlu')) return getId('S');
-            const nums = inventory.filter(i => /^\d+$/.test(i.id)).map(i => parseInt(i.id));
-            const blk = nums.length ? Math.max(...nums.map(n => Math.floor(n / 100))) : 0;
-            return String((blk + 1) * 100).padStart(4, '0');
+
+            let nextNum = getNextInRange(start, end);
+            if (nextNum > end) nextNum = getNextInRange(500, 9999);
+
+            return prefix + String(nextNum).padStart(3, '0');
         }
 
-        // --- IMPORT LOGIC (VOLLSTÄNDIG) ---
+        // --- IMPORT LOGIC (FIXED) ---
         function readImportFile(inputElement) {
             const file = inputElement.files[0]; if (!file) return;
             const reader = new FileReader();
@@ -661,15 +712,29 @@
 
         function confirmOverwrite() {
             if (!pendingImportData) return alert("Keine Daten!");
+            
             let newInv = [];
+            // Format detection
             if (Array.isArray(pendingImportData)) newInv = pendingImportData;
             else if (pendingImportData.inventory) {
                 newInv = pendingImportData.inventory;
                 if (pendingImportData.mapping) brandMapping = pendingImportData.mapping;
                 if (pendingImportData.settings) columnSettings = pendingImportData.settings;
             }
-            newInv.forEach(i => recalcItem(i));
-            inventory = newInv;
+            
+            // RESET INVENTORY FOR CLEAN IMPORT
+            inventory = []; 
+
+            // Process Items individually
+            newInv.forEach(item => {
+                // Ensure ID
+                if (!item.id || item.id.trim() === "") {
+                    item.id = calculateNextId(item.brand, item.type);
+                }
+                recalcItem(item);
+                inventory.push(item);
+            });
+
             saveData(); renderHeaders(); renderTable(); closeAllModals(); alert("Überschrieben!");
         }
 
@@ -690,12 +755,16 @@
                 if (idx > -1) {
                     addHistoryEntry(inventory[idx], amt, "Import Merge", prc); m++;
                 } else {
-                    newItem.history = [{ date: new Date().toISOString(), amount: amt, price: prc, note: "Import New" }];
-                    if (inventory.some(e => e.id === newItem.id)) {
+                    // Check for missing ID or Collision
+                    if (!newItem.id || inventory.some(e => e.id === newItem.id)) {
                         newItem.id = calculateNextId(newItem.brand, newItem.type);
                         if (inventory.some(e => e.id === newItem.id)) newItem.id += "_" + Math.floor(Math.random() * 100);
                     }
-                    recalcItem(newItem); inventory.push(newItem); n++;
+                    
+                    newItem.history = [{ date: new Date().toISOString(), amount: amt, price: prc, note: "Import New" }];
+                    recalcItem(newItem); 
+                    inventory.push(newItem); 
+                    n++;
                 }
             });
             saveData(); renderTable(); closeAllModals(); alert(`Merge: ${m}, Neu: ${n}`);
@@ -749,28 +818,83 @@
         }
 
         function renderTable() {
-            const tbody = document.getElementById('filamentTableBody');
-            const search = document.getElementById('searchInput').value.toLowerCase();
-            
-            // ... (deine Sortier-Logik bleibt gleich) ...
-            
-            // Create a fragment to minimize reflows
-            const fragment = document.createDocumentFragment();
+    const tbody = document.getElementById('filamentTableBody');
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    
+    // 1. Filter
+    const filtered = inventory.filter(i => Object.values(i).some(v => String(v).toLowerCase().includes(search)));
 
-            sorted.forEach(item => {
-                const tr = document.createElement('tr'); 
-                const idx = inventory.indexOf(item);
-                
-                // ... (deine Spalten-Erstellung bleibt gleich) ...
-                
-                // Append to fragment instead of tbody
-                fragment.appendChild(tr);
-            });
+    // 2. Sort
+    const sorted = filtered.sort((a, b) => {
+        let vA = a[sortState.key], vB = b[sortState.key];
+        if (sortState.key === 'count') { vA = a.count; vB = b.count; }
+        if (typeof vA === 'string') return vA.localeCompare(vB, undefined, { numeric: true });
+        return sortState.direction === 'asc' ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+    });
 
-            // Clear and append fragment once
-            tbody.innerHTML = '';
-            tbody.appendChild(fragment);
-        }
+    // 3. Render using DocumentFragment
+    const fragment = document.createDocumentFragment();
+
+    sorted.forEach(item => {
+        const tr = document.createElement('tr'); 
+        const idx = inventory.indexOf(item);
+        
+        columnSettings.forEach(col => {
+            const td = document.createElement('td');
+            if (col.key === 'id') { 
+                td.innerText = item.id; 
+                td.style.fontWeight = 'bold'; 
+            }
+            else if (col.key === 'averagePrice') { 
+                td.innerText = (item.averagePrice || 0).toFixed(2) + ' €'; 
+            }
+            else if (col.key === 'count') { 
+                td.innerText = item.count; 
+                td.style.textAlign = 'center'; 
+                td.style.fontWeight = 'bold'; 
+            }
+            else {
+                const inp = document.createElement('input');
+                if (col.key === 'sample') { 
+                    inp.type = 'checkbox'; 
+                    inp.checked = item.sample; 
+                    inp.onchange = (e) => updateEntry(idx, 'sample', e.target.checked); 
+                }
+                else {
+                    inp.value = item[col.key]; 
+                    if (col.key === 'weight') inp.type = 'number';
+                    if (['brand', 'type', 'color'].includes(col.key)) {
+                        inp.setAttribute('list', 'list' + col.key.charAt(0).toUpperCase() + col.key.slice(1) + 's');
+                    }
+                    inp.onchange = (e) => {
+                        let v = e.target.value; 
+                        if (col.key === 'brand') v = normalizeBrand(v); 
+                        if (col.key === 'weight') v = parseFloat(v);
+                        updateEntry(idx, col.key, v); 
+                        if (col.key === 'brand') renderTable();
+                    };
+                }
+                td.appendChild(inp);
+            }
+            tr.appendChild(td);
+        });
+        
+        // Action buttons
+        const tdAct = document.createElement('td');
+        tdAct.innerHTML = `<div class="action-group">
+            <button class="btn-mini btn-dec" onclick="changeCount(${idx}, -1)">-</button>
+            <button class="btn-mini btn-inc" onclick="changeCount(${idx}, 1)">+</button>
+            <button class="btn-mini btn-hist" onclick="showHistory(${idx})">🕒</button>
+            <button class="btn-mini btn-del" onclick="deleteEntry(${idx})">✕</button>
+        </div>`;
+        tr.appendChild(tdAct);
+        
+        fragment.appendChild(tr);
+    });
+
+    tbody.innerHTML = '';
+    tbody.appendChild(fragment);
+}
 
         function addEntry() {
             const b = normalizeBrand(document.getElementById('newBrand').value);
@@ -781,7 +905,6 @@
             const existIdx = inventory.findIndex(i => normalizeBrand(i.brand) === b && i.type === t && i.color === document.getElementById('newColor').value);
             if (existIdx > -1) { addHistoryEntry(inventory[existIdx], c, "Nachkauf", p); alert("Bestand erhöht!"); }
             else {
-                // FIX: Automatische ID Berechnung ohne DOM-Zugriff
                 let id = calculateNextId(b, t);
                 const ni = { id: id, brand: b, type: t, color: document.getElementById('newColor').value, info: document.getElementById('newInfo').value, weight: parseFloat(document.getElementById('newWeight').value) || 1000, sample: document.getElementById('newSample').checked, history: [] };
                 addHistoryEntry(ni, c, "Neu", p); inventory.push(ni);
@@ -799,17 +922,8 @@
         function updateAutocompleteLists() {
             ['brand', 'type', 'color', 'info'].forEach(k => {
                 const l = document.getElementById('list' + k.charAt(0).toUpperCase() + k.slice(1) + 's');
-                // Get unique values, sort them, create HTML string efficiently
-                const options = [...new Set(inventory.map(i => i[k]))]
-                    .filter(v => v) // Remove empty/null
-                    .sort()
-                    .map(v => `<option value="${v}">`)
-                    .join('');
-                
-                // Update DOM only once per list
-                if (l.innerHTML !== options) {
-                    l.innerHTML = options;
-                }
+                const options = [...new Set(inventory.map(i => i[k]))].filter(v => v).sort().map(v => `<option value="${v}">`).join('');
+                if (l.innerHTML !== options) l.innerHTML = options;
             });
         }
         function showHistory(idx) {
