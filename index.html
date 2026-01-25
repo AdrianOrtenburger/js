@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Filament Manager v34 - Fixed</title>
+    <title>Filament Manager v36 - Rapid Entry</title>
 
     <meta name="theme-color" content="#2d3436">
 
@@ -14,26 +14,48 @@
 
     <style>
         :root {
-            --primary-color: #ff9f43; --primary-hover: #ff8c00;
-            --text-dark: #2d3436; --text-light: #ffffff;
-            --bg-body: #eeeeee; --bg-card: #ffffff;
-            --border-color: #ccc; --row-hover: #fff8e1;
-            --btn-inc: #2ecc71; --btn-dec: #f1c40f;
-            --btn-del: #e74c3c; --btn-info: #3498db;
+            --primary-color: #ff9f43;
+            --primary-hover: #ff8c00;
+            --text-dark: #2d3436;
+            --text-light: #ffffff;
+            --bg-body: #eeeeee;
+            --bg-card: #ffffff;
+            --border-color: #ccc;
+            --row-hover: #fff8e1;
+            --btn-inc: #2ecc71;
+            --btn-dec: #f1c40f;
+            --btn-del: #e74c3c;
+            --btn-info: #3498db;
         }
 
-        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background-color: var(--bg-body); color: var(--text-dark); overflow-x: hidden; padding-bottom: 80px; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            padding: 20px;
+            background-color: var(--bg-body);
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
 
-        /* Header */
-        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--text-dark); padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); color: white; }
+        /* --- Header --- */
+        .header-container {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; background: var(--text-dark); padding: 15px 20px;
+            border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); color: white;
+        }
         h2 { margin: 0; color: var(--primary-color); font-size: 1.2rem; }
+        
         .user-controls { display: flex; gap: 10px; align-items: center; }
         .user-avatar { width: 32px; height: 32px; border-radius: 50%; display: none; border: 2px solid var(--primary-color); }
         #authBtn { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
         #menuBtn { background-color: var(--primary-color); color: var(--text-dark); border: none; padding: 8px 12px; cursor: pointer; font-weight: bold; border-radius: 4px; }
 
-        /* Form */
-        .add-form { background: var(--bg-card); padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; align-items: end; margin-bottom: 15px; border-top: 3px solid var(--primary-color); }
+        /* --- Add Form --- */
+        .add-form {
+            background: var(--bg-card); padding: 15px; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px;
+            align-items: end; margin-bottom: 15px; border-top: 3px solid var(--primary-color);
+        }
         .add-form h3 { width: 100%; grid-column: 1 / -1; margin: 0 0 5px 0; color: var(--text-dark); border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 1rem; display: flex; justify-content: space-between; }
         .form-group { display: flex; flex-direction: column; }
         .form-group label { font-size: 0.75rem; font-weight: bold; color: #666; margin-bottom: 2px; }
@@ -42,20 +64,40 @@
         #addBtn { background-color: var(--text-dark); color: var(--primary-color); border: none; padding: 8px 15px; cursor: pointer; font-weight: bold; border-radius: 4px; height: 35px; }
         #clearBtn { background-color: #eee; color: #333; border: none; padding: 4px 8px; cursor: pointer; font-size: 0.75rem; border-radius: 3px; }
 
-        /* Table */
-        .table-wrapper { overflow-x: auto; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); background: white; border: 1px solid var(--border-color); }
+        /* --- TABLE --- */
+        .table-wrapper {
+            overflow-x: auto; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); background: white;
+            border: 1px solid var(--border-color);
+        }
         table.main-table { width: 100%; border-collapse: collapse; min-width: 900px; table-layout: fixed; }
         thead { background-color: var(--primary-color); color: var(--text-dark); }
-        th { padding: 10px 8px; text-align: left; border-bottom: 2px solid #ccc; border-right: 1px solid rgba(0,0,0,0.05); cursor: pointer; position: relative; user-select: none; font-weight: bold; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        th {
+            padding: 10px 8px; text-align: left; border-bottom: 2px solid #ccc; border-right: 1px solid rgba(0,0,0,0.05);
+            cursor: pointer; position: relative; user-select: none; font-weight: bold; font-size: 0.9rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
         th:hover { background-color: var(--primary-hover); }
         .main-table th.sort-asc::after { content: '▲'; position: absolute; right: 2px; font-size: 0.7em; top: 10px; }
         .main-table th.sort-desc::after { content: '▼'; position: absolute; right: 2px; font-size: 0.7em; top: 10px; }
-        
+
+        /* Cells */
         td { padding: 0; border-bottom: 1px solid #eee; border-right: 1px solid #f9f9f9; vertical-align: middle; }
-        td input { width: 100%; height: 100%; display: block; border: none; background: transparent; font-family: inherit; font-size: 0.95rem; padding: 10px 8px; box-sizing: border-box; border-radius: 0; color: #333; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+        td input {
+            width: 100%; height: 100%; display: block; border: none; background: transparent;
+            font-family: inherit; font-size: 0.95rem; padding: 10px 8px; box-sizing: border-box;
+            border-radius: 0; color: #333; white-space: nowrap; overflow: hidden; text-overflow: clip;
+        }
         td input:focus { outline: none; background: #fff; box-shadow: inset 0 0 0 2px var(--primary-color); position: relative; z-index: 2; }
         td input:hover { background-color: rgba(255,255,255,0.8); }
         tr:hover td { background-color: var(--row-hover); }
+
+        /* CLICKABLE ID STYLE */
+        .clickable-id {
+            cursor: pointer; color: var(--primary-color); font-weight: bold; padding: 10px 8px;
+            text-decoration: underline; text-decoration-style: dotted;
+        }
+        .clickable-id:hover { background-color: var(--primary-color); color: white; text-decoration: none; }
 
         .resizer { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; z-index: 10; opacity: 0; }
         .resizer:hover { opacity: 1; background: rgba(0,0,0,0.1); }
@@ -64,7 +106,7 @@
         .btn-mini { width: 26px; height: 26px; border-radius: 3px; border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1rem; }
         .btn-dec { background: var(--btn-dec); color: #333; } .btn-inc { background: var(--btn-inc); } .btn-hist { background: var(--btn-info); font-size: 0.9rem; } .btn-del { background: var(--btn-del); font-size: 0.8rem; }
 
-        /* Sidebar & Modals */
+        /* UI Overlays */
         #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; }
         #overlay.show { display: block; }
         .sidebar { position: fixed; top: 0; right: -300px; width: 250px; height: 100%; background: var(--text-dark); color: white; transition: 0.3s; z-index: 1002; padding: 60px 20px; box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5); }
@@ -111,7 +153,7 @@
         <div class="form-group"><label>Type</label><input type="text" id="newType" list="listTypes" onkeyup="renderTable()" placeholder="Filter..."></div>
         <div class="form-group"><label>Farbe</label><input type="text" id="newColor" list="listColors" onkeyup="renderTable()" placeholder="Filter..."></div>
         <div class="form-group"><label>Info</label><input type="text" id="newInfo" list="listInfos" onkeyup="renderTable()" placeholder="Filter..."></div>
-        <div class="form-group"><label>Gewicht</label><input type="number" id="newWeight" onkeyup="renderTable()" placeholder="Filter..."></div>
+        <div class="form-group"><label>Gewicht</label><input type="number" id="newWeight" placeholder="1000" onkeyup="renderTable()"></div>
         <div class="form-group"><label>Preis</label><input type="number" id="newPrice" value="0.00" step="0.01"></div>
         <div class="form-group"><label>Anz.</label><input type="number" id="newCount" value="1" onkeyup="renderTable()"></div>
         <div class="form-group" style="align-items: center;"><label>Smp.</label><input type="checkbox" id="newSample" onchange="renderTable()"></div>
@@ -163,7 +205,6 @@
 
     <script>
         // *** HIER DEINE FIREBASE CONFIG EINFÜGEN ***
-        // WICHTIG: Achte auf korrekte Syntax (Kommas, Anführungszeichen)!
         const firebaseConfig = {
             apiKey: "AIzaSyCNXW-aJKNgkueKmy3PFBEOMGoZ3-cvL4A",
             authDomain: "filament-manager-7c032.firebaseapp.com",
@@ -179,20 +220,13 @@
         try {
             if (firebaseConfig.apiKey !== "HIER_API_KEY_EINFUEGEN") {
                 firebase.initializeApp(firebaseConfig);
-                db = firebase.firestore(); 
-                auth = firebase.auth();
-                db.enablePersistence().catch(err => {
-                    // Persistence errors are benign in many cases (e.g. multiple tabs)
-                    console.log("Persistence suppressed:", err.code);
-                });
+                db = firebase.firestore(); auth = firebase.auth();
+                db.enablePersistence().catch(err => console.log("Persistence suppressed:", err.code));
             }
-        } catch(e) {
-            console.error("Firebase Init Error (Check your Config!):", e);
-            alert("Fehler in der Firebase Konfiguration. Siehe Konsole (F12). App läuft lokal.");
-        }
+        } catch(e) { console.error("Firebase Config Error:", e); }
 
         // --- VARS ---
-        const STORAGE_KEY = 'filament_inventory_v34';
+        const STORAGE_KEY = 'filament_inventory_v36';
         const MAPPING_KEY = 'filament_mapping_v1';
         const SETTINGS_KEY = 'filament_settings_v1';
         
@@ -211,17 +245,9 @@
         ];
         const DEFAULT_MAPPING = { "Bambu Lab": ["bambu", "bl"], "Sunlu": ["sl"] };
 
-        // --- GLOBAL FUNCTION EXPORTS (FIXES REFERENCE ERROR) ---
-        // Dies stellt sicher, dass HTML onclick="..." die Funktionen findet
-        window.toggleSidebar = function() {
-            document.getElementById('sidebar').classList.toggle('open'); 
-            document.getElementById('overlay').classList.toggle('show'); 
-        };
-        
-        window.closeAllModals = function() { 
-            document.querySelectorAll('.modal, .sidebar, #overlay').forEach(e=>e.classList.remove('show','open')); 
-            pendingImportData=null; document.getElementById('importFile').value=''; currentHistoryItemIndex=-1; 
-        };
+        // --- GLOBAL EXPORTS ---
+        window.toggleSidebar = function() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('show'); };
+        window.closeAllModals = function() { document.querySelectorAll('.modal, .sidebar, #overlay').forEach(e=>e.classList.remove('show','open')); pendingImportData=null; document.getElementById('importFile').value=''; currentHistoryItemIndex=-1; };
 
         // --- DOM LOAD ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -245,9 +271,26 @@
             document.getElementById('newId').value = calculateNextId(document.getElementById('newBrand').value, document.getElementById('newType').value);
         }
 
+        // --- PRE-FILL FORM ---
+        window.fillForm = function(idx) {
+            const item = inventory[idx];
+            document.getElementById('newBrand').value = item.brand;
+            document.getElementById('newType').value = item.type;
+            document.getElementById('newColor').value = item.color;
+            document.getElementById('newInfo').value = item.info || "";
+            document.getElementById('newWeight').value = item.weight;
+            
+            // Preis übernehmen (Durchschnitt), aber Sample NICHT (reset)
+            document.getElementById('newPrice').value = (item.averagePrice || 0).toFixed(2);
+            document.getElementById('newSample').checked = false; 
+            
+            document.getElementById('newId').value = item.id;
+            renderTable();
+        };
+
         // --- AUTH ---
         window.toggleAuth = function() {
-            if(!auth) return alert("Firebase Config fehlt oder fehlerhaft!");
+            if(!auth) return alert("Firebase Config fehlt!");
             if(currentUser) auth.signOut(); else auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message));
         }
         function updateUIForAuth(inStatus) {
@@ -358,7 +401,6 @@
 
         window.renderTable = function() {
             const body = document.getElementById('filamentTableBody');
-            
             const fB = document.getElementById('newBrand').value.toLowerCase();
             const fT = document.getElementById('newType').value.toLowerCase();
             const fC = document.getElementById('newColor').value.toLowerCase();
@@ -390,7 +432,12 @@
                 const tr = document.createElement('tr'); const idx = inventory.indexOf(item);
                 columnSettings.forEach(col => {
                     const td = document.createElement('td');
-                    if(col.key==='id') { td.innerText=item.id; td.style.fontWeight='bold'; td.style.padding="0 8px"; }
+                    if(col.key==='id') { 
+                        td.innerText=item.id; 
+                        td.className="clickable-id"; 
+                        td.title="Klicken zum Bearbeiten/Klonen";
+                        td.onclick = () => fillForm(idx); 
+                    }
                     else if(col.key==='averagePrice') { td.innerText=(item.averagePrice||0).toFixed(2)+' €'; td.style.padding="0 8px"; }
                     else if(col.key==='count') { td.innerText=item.count; td.style.fontWeight='bold'; td.style.textAlign='center'; td.style.padding="0 8px"; }
                     else {
@@ -422,17 +469,29 @@
             if(!b) return alert("Marke fehlt!");
             const p = parseFloat(document.getElementById('newPrice').value)||0;
             const c = parseFloat(document.getElementById('newCount').value)||0;
+            const w = parseFloat(document.getElementById('newWeight').value)||1000;
+            
             const idx = inventory.findIndex(i=>normalizeBrand(i.brand)===b && i.type===t && i.color===document.getElementById('newColor').value);
             if(idx>-1) { addHistoryEntry(inventory[idx], c, "Nachkauf", p); alert("Bestand erhöht!"); }
             else {
-                const ni = {id:calculateNextId(b,t), brand:b, type:t, color:document.getElementById('newColor').value, info:document.getElementById('newInfo').value, weight:parseFloat(document.getElementById('newWeight').value)||1000, sample:document.getElementById('newSample').checked, history:[]};
+                const ni = {
+                    id:calculateNextId(b,t), brand:b, type:t, color:document.getElementById('newColor').value, 
+                    info:document.getElementById('newInfo').value, weight:w, 
+                    sample:document.getElementById('newSample').checked, history:[]
+                };
                 addHistoryEntry(ni, c, "Neu", p); inventory.push(ni);
             }
-            saveData(); clearForm();
+            // NO CLEAR FORM HERE - Just update IDs and Table
+            updateId(); 
+            saveData(); 
+            renderTable();
         }
         window.clearForm = function() {
             document.querySelectorAll('.add-form input').forEach(i=>i.value='');
-            document.getElementById('newCount').value='1'; document.getElementById('newPrice').value='0.00'; document.getElementById('newSample').checked=false;
+            document.getElementById('newCount').value='1'; 
+            document.getElementById('newPrice').value='0.00'; 
+            document.getElementById('newSample').checked=false;
+            document.getElementById('newId').value='';
             renderTable();
         };
         window.changeCount = function(idx, d) { if(inventory[idx].count+d<0)return; addHistoryEntry(inventory[idx], d, d>0?"Inkrement":"Dekrement", d>0?inventory[idx].averagePrice:0); saveData(); renderTable(); }
