@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Filament Manager v36 - Rapid Entry</title>
+    <title>Filament Manager</title>
 
     <meta name="theme-color" content="#2d3436">
 
@@ -421,10 +421,36 @@
             });
 
             const sorted = filtered.sort((a,b) => {
-                let vA=a[sortState.key], vB=b[sortState.key];
-                if(sortState.key==='count'){vA=a.count;vB=b.count;}
-                if(typeof vA==='string') return vA.localeCompare(vB, undefined, {numeric:true});
-                return sortState.direction==='asc'?(vA>vB?1:-1):(vA<vB?1:-1);
+                // Helper function for comparison
+                const cmp = (vA, vB, dir) => {
+                    // Handle Strings (Case insensitive, numeric aware)
+                    if(typeof vA === 'string' && typeof vB === 'string') {
+                        return vA.localeCompare(vB, undefined, {numeric:true}) * (dir==='asc' ? 1 : -1);
+                    }
+                    // Handle Numbers/Booleans
+                    if (vA < vB) return dir === 'asc' ? -1 : 1;
+                    if (vA > vB) return dir === 'asc' ? 1 : -1;
+                    return 0;
+                };
+
+                // 1. Primary Sort (User selection)
+                // Special handling to ensure numbers for 'count' or 'weight' if needed
+                let valA = a[sortState.key], valB = b[sortState.key];
+                if(sortState.key === 'count') { valA = a.count; valB = b.count; }
+                
+                let diff = cmp(valA, valB, sortState.direction);
+                if (diff !== 0) return diff;
+
+                // 2. Secondary: Brand (Marke) -> Always ASC
+                diff = cmp(a.brand, b.brand, 'asc');
+                if (diff !== 0) return diff;
+
+                // 3. Tertiary: Type -> Always ASC
+                diff = cmp(a.type, b.type, 'asc');
+                if (diff !== 0) return diff;
+
+                // 4. Quaternary: Color (Farbe) -> Always ASC
+                return cmp(a.color, b.color, 'asc');
             });
 
             const frag = document.createDocumentFragment();
